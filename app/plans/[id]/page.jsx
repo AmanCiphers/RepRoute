@@ -118,7 +118,7 @@ function PlanDetailPage() {
               No days yet. Add your first training day above.
             </p>
           ) : (
-            <div className="grid gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               {days.map((day) => (
                 <DayCard key={day.id} day={day} onDelete={deleteDay} />
               ))}
@@ -134,7 +134,7 @@ function DayCard({ day, onDelete }) {
   const [dayExercises, setDayExercises] = useState([])
   const [selectedExercise, setSelectedExercise] = useState('')
   const [targetSets, setTargetSets] = useState(3)
-  const [targetReps, setTargetReps] = useState(10)
+  const [targetReps, setTargetReps] = useState(12)
   const [allExercises, setAllExercises] = useState([])
   const [exercisesLoaded, setExercisesLoaded] = useState(false)
 
@@ -184,7 +184,7 @@ function DayCard({ day, onDelete }) {
   }
 
   return (
-    <div className="rounded-md border border-[#d9d8d2] bg-[#fbfbfa] p-4 sm:p-5">
+    <div className="overflow-hidden rounded-md border border-[#d9d8d2] bg-[#fbfbfa] p-4 sm:p-5">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-black text-[#171717] sm:text-xl">{day.name}</h3>
         <button
@@ -206,11 +206,13 @@ function DayCard({ day, onDelete }) {
           return (
             <div
               key={de.id}
-              className="flex items-center justify-between rounded-md border border-[#d9d8d2] bg-white p-3"
+              className="flex min-w-0 items-center justify-between rounded-md border border-[#d9d8d2] bg-white p-3"
             >
-              <div className="min-w-0 flex-1 font-bold text-[#171717]">
-                {exercise?.name || 'Unknown'}
-                <span className="ml-2 text-sm font-semibold text-[#77766f]">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
+                <span className="block truncate font-bold text-[#171717]">
+                  {exercise?.name || 'Unknown'}
+                </span>
+                <span className="text-sm font-semibold text-[#77766f] sm:shrink-0">
                   {de.target_sets} &times; {de.target_reps}
                 </span>
               </div>
@@ -246,25 +248,31 @@ function DayCard({ day, onDelete }) {
               <option key={ex.id} value={ex.id}>{ex.name}</option>
             ))}
           </select>
-          <div className="flex w-full gap-2 sm:w-auto">
-            <input
-              type="number"
-              placeholder="Sets"
-              value={targetSets}
-              onChange={(e) => setTargetSets(Number(e.target.value))}
-              className="h-11 flex-1 border border-[#d9d8d2] bg-white px-2 text-base font-semibold text-center outline-none focus:border-[#171717] sm:h-9 sm:w-16 sm:text-sm"
-            />
-            <input
-              type="number"
-              placeholder="Reps"
-              value={targetReps}
-              onChange={(e) => setTargetReps(Number(e.target.value))}
-              className="h-11 flex-1 border border-[#d9d8d2] bg-white px-2 text-base font-semibold text-center outline-none focus:border-[#171717] sm:h-9 sm:w-16 sm:text-sm"
-            />
+          <div className="flex min-w-0 w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <div className="flex min-w-0 flex-1 gap-2">
+              <label className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="text-xs font-semibold text-[#77766f]">Sets</span>
+                <input
+                  type="number"
+                  value={targetSets}
+                  onChange={(e) => setTargetSets(Number(e.target.value))}
+                  className="h-11 min-w-0 w-full border border-[#d9d8d2] bg-white px-2 text-base font-semibold text-center outline-none focus:border-[#171717] sm:h-9 sm:text-sm"
+                />
+              </label>
+              <label className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="text-xs font-semibold text-[#77766f]">Reps</span>
+                <input
+                  type="number"
+                  value={targetReps}
+                  onChange={(e) => setTargetReps(Number(e.target.value))}
+                  className="h-11 min-w-0 w-full border border-[#d9d8d2] bg-white px-2 text-base font-semibold text-center outline-none focus:border-[#171717] sm:h-9 sm:text-sm"
+                />
+              </label>
+            </div>
             <button
               type="submit"
               disabled={!selectedExercise}
-              className="h-11 flex-1 border border-[#171717] bg-[#171717] px-4 text-sm font-black text-white transition hover:bg-transparent hover:text-[#171717] disabled:opacity-50 sm:h-9 sm:flex-none"
+              className="h-11 w-full border border-[#171717] bg-[#171717] px-4 text-sm font-black text-white transition hover:bg-transparent hover:text-[#171717] disabled:opacity-50 sm:h-9 sm:w-auto"
             >
               Add
             </button>
