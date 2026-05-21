@@ -54,11 +54,8 @@ export default function HomePage() {
       {/* ───── HERO ───── */}
       <section className="relative bg-[#2f2f2d] px-6 pb-32 pt-32 sm:px-10 sm:pb-36 sm:pt-36 lg:px-20 lg:pb-44 lg:pt-44 xl:px-28">
         <div className="relative z-10 mx-auto max-w-4xl text-center">
-          <div className="mx-auto mb-8 flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-semibold text-white/60">
-            <Route className="size-3.5" />
-            Intelligent progressive overload
-          </div>
-          <h1 className="text-5xl font-black leading-[1.05] text-white sm:text-7xl lg:text-8xl">
+          
+          <h1 className="text-5xl font-black leading-[1.05] text-white sm:text-7xl lg:text-8xl mt-10">
             Know exactly
             <br />
             <span className="bg-gradient-to-r from-white via-white/85 to-white/50 bg-clip-text text-transparent">
