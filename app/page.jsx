@@ -182,7 +182,7 @@ export default function HomePage() {
       <section className="border-y border-[#d9d8d2] bg-[#2f2f2d] px-6 py-14 sm:px-10 lg:px-20 xl:px-28">
         <div className="mx-auto grid max-w-4xl grid-cols-2 gap-8 text-center sm:grid-cols-4">
           {[
-            { value: "10K+", label: "Sets logged" },
+            { value: "600+", label: "Sets logged" },
             { value: "50+", label: "Exercises" },
             { value: "4", label: "Built-in templates" },
             { value: "100%", label: "Free" },
