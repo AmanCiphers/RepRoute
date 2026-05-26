@@ -26,26 +26,15 @@ function PlanDetailPage() {
     if (authLoading) return
     if (!user) { router.push('/login'); return }
 
-    supabase
-      .from('workout_plans')
-      .select('*')
-      .eq('id', params.id)
-      .single()
-      .then(({ data }) => {
-        if (!data) { router.push('/plans'); return }
-        setPlan(data)
-      })
-
-    supabase
-      .from('plan_days')
-      .select('*')
-      .eq('plan_id', params.id)
-      .order('sort_order')
-      .then(({ data }) => {
-        if (data) setDays(data)
-      })
-
-    setLoading(false)
+    Promise.all([
+      supabase.from('workout_plans').select('*').eq('id', params.id).eq('user_id', user.id).single(),
+      supabase.from('plan_days').select('*').eq('plan_id', params.id).order('sort_order'),
+    ]).then(([planRes, daysRes]) => {
+      if (!planRes.data) { router.push('/plans'); return }
+      setPlan(planRes.data)
+      if (daysRes.data) setDays(daysRes.data)
+      setLoading(false)
+    })
   }, [user, authLoading, router, params.id])
 
   async function addDay(e) {
@@ -120,7 +109,7 @@ function PlanDetailPage() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {days.map((day) => (
-                <DayCard key={day.id} day={day} onDelete={deleteDay} />
+                <DayCard key={day.id} day={day} userId={user.id} onDelete={deleteDay} />
               ))}
             </div>
           )}
@@ -130,7 +119,7 @@ function PlanDetailPage() {
   )
 }
 
-function DayCard({ day, onDelete }) {
+function DayCard({ day, userId, onDelete }) {
   const [dayExercises, setDayExercises] = useState([])
   const [selectedExercise, setSelectedExercise] = useState('')
   const [targetSets, setTargetSets] = useState(3)
@@ -148,11 +137,11 @@ function DayCard({ day, onDelete }) {
         if (data) setDayExercises(data)
       })
 
-    supabase.from('exercises').select('*').then(({ data }) => {
+    supabase.from('exercises').select('*').or(`user_id.eq.${userId},user_id.is.null`).then(({ data }) => {
       if (data) setAllExercises(data)
       setExercisesLoaded(true)
     })
-  }, [day.id])
+  }, [day.id, userId])
 
   async function addExercise(e) {
     e.preventDefault()

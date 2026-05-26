@@ -20,8 +20,8 @@ export default function DashboardPage() {
     if (!user) { router.push('/login'); return }
 
     Promise.all([
-      supabase.from('workout_plans').select('*').order('created_at', { ascending: false }),
-      supabase.from('workout_sessions').select('*, workout_plans(name)').order('date', { ascending: false }).limit(10),
+      supabase.from('workout_plans').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('workout_sessions').select('*, workout_plans(name)').eq('user_id', user.id).order('date', { ascending: false }).limit(10),
     ]).then(([plansRes, sessionsRes]) => {
       if (plansRes.data) setPlans(plansRes.data)
       if (sessionsRes.data) setSessions(sessionsRes.data)
@@ -31,8 +31,8 @@ export default function DashboardPage() {
 
   async function deleteSession(id) {
     await supabase.from('exercise_sets').delete().eq('session_id', id)
-    await supabase.from('workout_sessions').delete().eq('id', id)
-    setSessions(sessions.filter((s) => s.id !== id))
+    await supabase.from('workout_sessions').delete().eq('id', id).eq('user_id', user.id)
+    setSessions((prev) => prev.filter((s) => s.id !== id))
   }
 
   if (authLoading || loading) {

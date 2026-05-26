@@ -55,15 +55,15 @@ export function OverloadSuggestion({ dayExercise, sessionId }) {
         return
       }
 
-      const { data: allSets } = await supabase
+      const { data: candidateSets } = await supabase
         .from('exercise_sets')
-        .select('reps, weight, session_id')
+        .select('reps, weight, session_id, day_exercise_id')
         .in('session_id', sessIds)
         .in('day_exercise_id', deIds)
         .order('session_id', { ascending: false })
-        .limit(dayExercise.target_sets)
+        .order('set_number', { ascending: true })
 
-      if (!allSets || allSets.length === 0) {
+      if (!candidateSets || candidateSets.length === 0) {
         setSuggestion({
           type: 'baseline',
           message: `Hit ${dayExercise.target_reps} reps on all ${dayExercise.target_sets} sets to establish your baseline.`,
@@ -71,10 +71,21 @@ export function OverloadSuggestion({ dayExercise, sessionId }) {
         return
       }
 
-      const session = sessions.find((s) => s.id === allSets[0].session_id)
-      const sessionDate = session?.date
+      const latestSessionId = candidateSets[0].session_id
+      const lastSetsData = candidateSets
+        .filter((set) => set.session_id === latestSessionId)
+        .map((set) => ({ reps: set.reps, weight: set.weight }))
 
-      const lastSetsData = allSets.map((s) => ({ reps: s.reps, weight: s.weight }))
+      if (lastSetsData.length === 0) {
+        setSuggestion({
+          type: 'baseline',
+          message: `Hit ${dayExercise.target_reps} reps on all ${dayExercise.target_sets} sets to establish your baseline.`,
+        })
+        return
+      }
+
+      const session = sessions.find((s) => s.id === latestSessionId)
+      const sessionDate = session?.date
 
       const allHitTarget = lastSetsData.every(
         (s) => Number(s.reps || 0) >= dayExercise.target_reps

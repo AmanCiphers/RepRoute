@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
@@ -9,6 +9,16 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts'
+
+function CustomTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="rounded-md border border-[#d9d8d2] bg-white p-3 text-sm font-semibold shadow-md">
+      <p className="text-[#77766f]">{label}</p>
+      <p className="text-[#171717]">{payload[0].value} kg</p>
+    </div>
+  )
+}
 
 export default function ProgressPage() {
   const { user, loading: authLoading } = useAuth()
@@ -19,18 +29,7 @@ export default function ProgressPage() {
   const [rmData, setRmData] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (authLoading) return
-    if (!user) { router.push('/login'); return }
-
-    supabase.from('exercises').select('*').then(({ data }) => {
-      if (data) setExercises(data)
-    })
-
-    loadData()
-  }, [user, authLoading, router])
-
-  async function loadData() {
+  const loadData = useEffectEvent(async () => {
     const { data: sessions } = await supabase
       .from('workout_sessions')
       .select('id, date')
@@ -79,7 +78,22 @@ export default function ProgressPage() {
 
     setRmData({ sessions, rmMap })
     setLoading(false)
-  }
+  })
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!user) { router.push('/login'); return }
+
+    supabase.from('exercises').select('*').or(`user_id.eq.${user.id},user_id.is.null`).then(({ data }) => {
+      if (data) setExercises(data)
+    })
+
+    const timeoutId = window.setTimeout(() => {
+      loadData()
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [user, authLoading, router])
 
   function getRmChartData() {
     if (!rmData.sessions || !selectedExerciseId) return []
@@ -97,17 +111,6 @@ export default function ProgressPage() {
   }
 
   const exercise = exercises.find((e) => e.id === Number(selectedExerciseId))
-
-  function CustomTooltip({ active, payload, label }) {
-    if (!active || !payload?.length) return null
-    return (
-      <div className="rounded-md border border-[#d9d8d2] bg-white p-3 text-sm font-semibold shadow-md">
-        <p className="text-[#77766f]">{label}</p>
-        <p className="text-[#171717]">{payload[0].value} kg</p>
-      </div>
-    )
-  }
-
   if (authLoading || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f7f7f3]">

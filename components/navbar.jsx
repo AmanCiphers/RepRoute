@@ -139,10 +139,6 @@ function MobileMenu({ hiddenClass }) {
   }, [open])
 
   useEffect(() => {
-    close()
-  }, [pathname, close])
-
-  useEffect(() => {
     if (!open) return
     const handler = (e) => {
       if (e.key === "Escape") close()

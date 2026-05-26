@@ -44,8 +44,8 @@ function LogPage() {
     if (!user) { router.push('/login'); return }
 
     Promise.all([
-      supabase.from('workout_plans').select('*'),
-      supabase.from('exercises').select('*'),
+      supabase.from('workout_plans').select('*').eq('user_id', user.id),
+      supabase.from('exercises').select('*').or(`user_id.eq.${user.id},user_id.is.null`),
       supabase.from('workout_sessions').select('*, workout_plans(name)').eq('user_id', user.id).order('date', { ascending: false }).limit(20),
     ]).then(([plansRes, exRes, sessionsRes]) => {
       if (plansRes.data) setPlans(plansRes.data)
@@ -56,14 +56,7 @@ function LogPage() {
   }, [user, authLoading, router])
 
   useEffect(() => {
-    if (!selectedPlanId) {
-      setPlanDays([])
-      setSelectedDay(null)
-      setDayExercises([])
-      setSets({})
-      setExistingSession(null)
-      return
-    }
+    if (!selectedPlanId) return
     supabase
       .from('plan_days')
       .select('*, day_exercises:day_exercises(id)')
@@ -89,12 +82,12 @@ function LogPage() {
     if (!dayExData || dayExData.length === 0) return
     setDayExercises(dayExData)
 
-    const { data: session } = await supabase
-      .from('workout_sessions')
-      .select('*')
-      .eq('plan_id', selectedPlanId)
-      .eq('date', selectedDate)
-      .maybeSingle()
+    const session = await findSessionForDay({
+      userId: user.id,
+      planId: selectedPlanId,
+      date: selectedDate,
+      dayExerciseIds: dayExData.map((item) => item.id),
+    })
 
     if (session) {
       setExistingSession(session)
@@ -102,6 +95,7 @@ function LogPage() {
         .from('exercise_sets')
         .select('*')
         .eq('session_id', session.id)
+        .in('day_exercise_id', dayExData.map((item) => item.id))
         .order('set_number')
 
       if (existingSets && existingSets.length > 0) {
@@ -116,6 +110,44 @@ function LogPage() {
       }
     } else {
       initNewSets(dayExData)
+    }
+  }
+
+  async function findSessionForDay({ userId, planId, date, dayExerciseIds }) {
+    const { data: sessions } = await supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('plan_id', planId)
+      .eq('date', date)
+      .order('id', { ascending: false })
+
+    if (!sessions || sessions.length === 0) return null
+    if (!dayExerciseIds.length) return sessions[0]
+
+    const { data: matchingSets } = await supabase
+      .from('exercise_sets')
+      .select('session_id, day_exercise_id')
+      .in('session_id', sessions.map((session) => session.id))
+      .in('day_exercise_id', dayExerciseIds)
+
+    if (!matchingSets || matchingSets.length === 0) return null
+
+    const sessionMatchCounts = matchingSets.reduce((acc, set) => {
+      acc[set.session_id] = (acc[set.session_id] || 0) + 1
+      return acc
+    }, {})
+
+    return sessions.find((session) => sessionMatchCounts[session.id] > 0) || sessions[0]
+  }
+
+  function sanitizeSetForInsert(set, sessionId) {
+    return {
+      session_id: sessionId,
+      day_exercise_id: set.day_exercise_id,
+      set_number: set.set_number,
+      reps: Number(set.reps || 0),
+      weight: Number(set.weight || 0),
     }
   }
 
@@ -145,6 +177,7 @@ function LogPage() {
   async function saveSession() {
     setSaving(true)
     const allSets = Object.values(sets).flat()
+    const selectedPlan = plans.find((plan) => plan.id === selectedPlanId)
 
     try {
       if (existingSession) {
@@ -152,9 +185,22 @@ function LogPage() {
         if (delErr) { alert('Delete error: ' + delErr.message); setSaving(false); return }
 
         const { error: insErr } = await supabase.from('exercise_sets').insert(
-          allSets.map(({ _local, ...s }) => ({ ...s, session_id: existingSession.id }))
+          allSets.map((set) => sanitizeSetForInsert(set, existingSession.id))
         )
         if (insErr) { alert('Insert error: ' + insErr.message) }
+        setPastSessions((prev) =>
+          prev.map((session) => (
+            session.id === existingSession.id
+              ? {
+                  ...session,
+                  date: selectedDate,
+                  workout_plans: selectedPlan
+                    ? { name: selectedPlan.name }
+                    : session.workout_plans || null,
+                }
+              : session
+          ))
+        )
       } else {
         const { data: newSession, error: sessErr } = await supabase
           .from('workout_sessions')
@@ -167,9 +213,13 @@ function LogPage() {
         if (newSession) {
           setExistingSession(newSession)
           const { error: insErr } = await supabase.from('exercise_sets').insert(
-            allSets.map(({ _local, ...s }) => ({ ...s, session_id: newSession.id }))
+            allSets.map((set) => sanitizeSetForInsert(set, newSession.id))
           )
           if (insErr) { alert('Sets insert error: ' + insErr.message) }
+          setPastSessions((prev) => [
+            { ...newSession, workout_plans: selectedPlan ? { name: selectedPlan.name } : null },
+            ...prev.filter((session) => session.id !== newSession.id),
+          ])
         }
       }
     } catch (e) {
@@ -180,8 +230,8 @@ function LogPage() {
 
   async function deleteSession(id) {
     await supabase.from('exercise_sets').delete().eq('session_id', id)
-    await supabase.from('workout_sessions').delete().eq('id', id)
-    setPastSessions(pastSessions.filter((s) => s.id !== id))
+    await supabase.from('workout_sessions').delete().eq('id', id).eq('user_id', user.id)
+    setPastSessions((prev) => prev.filter((s) => s.id !== id))
     if (existingSession?.id === id) {
       setExistingSession(null)
       setDayExercises([])
@@ -232,7 +282,7 @@ function LogPage() {
 
             <select
               value={selectedPlanId || ''}
-              onChange={(e) => { setSelectedPlanId(Number(e.target.value)); setSelectedDay(null); setDayExercises([]); setSets({}); setExistingSession(null) }}
+              onChange={(e) => { setSelectedPlanId(e.target.value ? Number(e.target.value) : null); setSelectedDay(null); setDayExercises([]); setSets({}); setExistingSession(null) }}
               className="h-12 w-full border border-[#d9d8d2] bg-white px-3 text-base font-semibold outline-none focus:border-[#171717] sm:h-11 sm:w-auto sm:text-sm"
             >
               <option value="">Select a plan</option>

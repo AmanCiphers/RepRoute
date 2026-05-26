@@ -20,10 +20,15 @@ export default function ExercisesPage() {
     if (authLoading) return
     if (!user) { router.push('/login'); return }
 
-    supabase.from('exercises').select('*').order('name').then(({ data }) => {
+    supabase
+      .from('exercises')
+      .select('*')
+      .or(`user_id.eq.${user.id},user_id.is.null`)
+      .order('name')
+      .then(({ data }) => {
       if (data) setExercises(data)
       setLoading(false)
-    })
+      })
   }, [user, authLoading, router])
 
   async function addExercise(e) {

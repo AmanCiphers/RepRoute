@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -13,6 +13,7 @@ export default function SummaryPage() {
   const router = useRouter()
   const [sessions, setSessions] = useState([])
   const [exercises, setExercises] = useState([])
+  const [dayExerciseMap, setDayExerciseMap] = useState({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -21,18 +22,26 @@ export default function SummaryPage() {
 
     Promise.all([
       supabase.from('workout_sessions').select('*, workout_plans(name)').eq('user_id', user.id).order('date', { ascending: false }),
-      supabase.from('exercises').select('*'),
-    ]).then(([sessionsRes, exRes]) => {
+      supabase.from('exercises').select('*').or(`user_id.eq.${user.id},user_id.is.null`),
+      supabase.from('day_exercises').select('id, exercise_id'),
+    ]).then(([sessionsRes, exRes, dayExercisesRes]) => {
       if (sessionsRes.data) setSessions(sessionsRes.data)
       if (exRes.data) setExercises(exRes.data)
+      if (dayExercisesRes.data) {
+        const nextMap = {}
+        dayExercisesRes.data.forEach((dayExercise) => {
+          nextMap[dayExercise.id] = dayExercise
+        })
+        setDayExerciseMap(nextMap)
+      }
       setLoading(false)
     })
   }, [user, authLoading, router])
 
   async function deleteSession(id) {
     await supabase.from('exercise_sets').delete().eq('session_id', id)
-    await supabase.from('workout_sessions').delete().eq('id', id)
-    setSessions(sessions.filter((s) => s.id !== id))
+    await supabase.from('workout_sessions').delete().eq('id', id).eq('user_id', user.id)
+    setSessions((prev) => prev.filter((s) => s.id !== id))
   }
 
   if (authLoading || loading) {
@@ -80,6 +89,7 @@ export default function SummaryPage() {
                 key={session.id}
                 session={session}
                 exercises={exercises}
+                dayExerciseMap={dayExerciseMap}
                 onDelete={deleteSession}
               />
             ))
@@ -90,21 +100,12 @@ export default function SummaryPage() {
   )
 }
 
-function SessionCard({ session, exercises, onDelete }) {
-  const [dayExerciseMap, setDayExerciseMap] = useState({})
+function SessionCard({ session, exercises, dayExerciseMap, onDelete }) {
   const [sets, setSets] = useState([])
-  const [editingId, setEditingId] = useState(null)
-  const [editVal, setEditVal] = useState('')
 
   useEffect(() => {
-    Promise.all([
-      supabase.from('day_exercises').select('*'),
-      supabase.from('exercise_sets').select('*').eq('session_id', session.id).order('set_number'),
-    ]).then(([deRes, setsRes]) => {
-      const map = {}
-      if (deRes.data) deRes.data.forEach((de) => { map[de.id] = de })
-      setDayExerciseMap(map)
-      if (setsRes.data) setSets(setsRes.data)
+    supabase.from('exercise_sets').select('*').eq('session_id', session.id).order('set_number').then(({ data }) => {
+      if (data) setSets(data)
     })
   }, [session.id])
 
@@ -112,7 +113,7 @@ function SessionCard({ session, exercises, onDelete }) {
     const num = Number(value)
     if (isNaN(num)) return
     await supabase.from('exercise_sets').update({ [field]: num }).eq('id', setId)
-    setSets(sets.map((s) => (s.id === setId ? { ...s, [field]: num } : s)))
+    setSets((prev) => prev.map((s) => (s.id === setId ? { ...s, [field]: num } : s)))
   }
 
   const grouped = {}
@@ -180,8 +181,6 @@ function InlineEdit({ value, onSave, suffix = '' }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(value)
 
-  useEffect(() => { setVal(value) }, [value])
-
   function handleSave() {
     setEditing(false)
     if (Number(val) !== Number(value)) onSave(val)
@@ -203,7 +202,10 @@ function InlineEdit({ value, onSave, suffix = '' }) {
 
   return (
     <button
-      onClick={() => setEditing(true)}
+      onClick={() => {
+        setVal(value)
+        setEditing(true)
+      }}
       className="group inline-flex items-center gap-1 rounded px-1 py-0.5 transition hover:bg-[#efeee8]"
     >
       <span>{value || 0}{suffix}</span>

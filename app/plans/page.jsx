@@ -24,6 +24,7 @@ export default function PlansPage() {
     supabase
       .from('workout_plans')
       .select('*')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         if (data) setPlans(data)
@@ -50,14 +51,17 @@ export default function PlansPage() {
   }
 
   async function deletePlan(id) {
-    await supabase.from('workout_plans').delete().eq('id', id)
-    setPlans(plans.filter((p) => p.id !== id))
+    await supabase.from('workout_plans').delete().eq('id', id).eq('user_id', user.id)
+    setPlans((prev) => prev.filter((p) => p.id !== id))
   }
 
   async function importTemplate(template) {
     setImporting(template.name)
 
-    const { data: allExercises } = await supabase.from('exercises').select('id, name')
+    const { data: allExercises } = await supabase
+      .from('exercises')
+      .select('id, name')
+      .or(`user_id.eq.${user.id},user_id.is.null`)
 
     if (!allExercises) { setImporting(null); return }
 
